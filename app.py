@@ -42,7 +42,7 @@ def save_db(name, data):
 if 'user' not in st.session_state: st.session_state.user = None
 if 'reg_league' not in st.session_state: st.session_state.reg_league = None
 
-registry = load_db("league_registry") # { "LEAGUENAME": "JOINCODE" }
+registry = load_db("league_registry")
 
 if st.session_state.user is None:
     st.title("⚾ League Hub")
@@ -62,7 +62,6 @@ if st.session_state.user is None:
                 else:
                     registry[new_l] = new_c
                     save_db("league_registry", registry)
-                    
                     users = load_db("users")
                     users[f"{new_l}_ADMIN_{adm_u}"] = {
                         "pass": adm_p, "role": "Announcer", "team": "LEAGUE_ADMIN", "league": new_l, "username": adm_u
@@ -85,7 +84,6 @@ if st.session_state.user is None:
             l_name = st.session_state.reg_league
             st.subheader(f"📝 Registering for {l_name}")
             role = st.selectbox("Role", ["Player", "Coach"])
-            # Load teams specific to this league
             l_data = load_db(f"settings_{l_name}")
             l_teams = l_data.get("teams", [])
             
@@ -100,7 +98,6 @@ if st.session_state.user is None:
                     uid = f"{l_name}_{t_name}_{u_name}"
                     users[uid] = {"pass": pwd, "role": role, "team": t_name, "league": l_name, "username": u_name}
                     save_db("users", users)
-                    
                     r_db = load_db(f"roster_{l_name}_{t_name}")
                     plist = r_db.get("players", [])
                     if u_name not in plist:
@@ -111,7 +108,7 @@ if st.session_state.user is None:
                     st.session_state.reg_league = None
             if st.button("Back"): st.session_state.reg_league = None; st.rerun()
 
-    else: # LOGIN
+    else:
         l_name = st.text_input("League Name").strip().upper()
         u_name = st.text_input("Username").strip()
         pwd = st.text_input("Password", type="password")
@@ -128,7 +125,6 @@ if st.session_state.user is None:
             else: st.error("Login failed.")
 
 else:
-    # --- APP INTERFACE ---
     u = st.session_state.user
     l_name = u["league"]
     st.sidebar.title(f"👋 {u['username']}")
@@ -162,7 +158,6 @@ else:
                 if p != "Empty": st.write(f"{i+1}. {p}")
         else: st.caption("No order set.")
 
-    # --- ANNOUNCER VIEW ---
     if u['role'] == "Announcer":
         tabs = st.tabs(["🎙️ Game Deck", "⚙️ Manage League"])
         l_settings = load_db(f"settings_{l_name}")
@@ -195,6 +190,7 @@ else:
                     teams.append(new_t)
                     l_settings["teams"] = teams
                     save_db(f"settings_{l_name}", l_settings)
+                    st.success(f"Added {new_t} to the league!")
                     st.rerun()
             for t in teams:
                 c1, c2 = st.columns([4, 1])
@@ -203,7 +199,6 @@ else:
                     teams.remove(t); l_settings["teams"] = teams
                     save_db(f"settings_{l_name}", l_settings); st.rerun()
 
-    # --- COACH / PLAYER VIEW ---
     else:
         team = u["team"]
         role_tabs = ["💎 Field/Order", "🔊 Soundboard", "📋 Roster", "⚾ Edit Lineup", "📤 My Song"] if u['role'] == "Coach" else ["💎 Field/Order", "📤 My Song"]
@@ -250,43 +245,28 @@ else:
         else:
             upload_tab = tabs[1]
 
-       with upload_tab:
+        with upload_tab:
             st.subheader("🎵 My Walk-Up Settings")
-            
-            # 1. Load current settings
             t_db = load_db(f"times_{l_name}_{team}")
             current_time = t_db.get(u['username'], 0)
-            
-            # 2. Dedicated Timestamp Adjustment
-            st.write("Adjust your song's start point:")
             new_t = st.number_input("Start Time (seconds)", 0, 300, int(current_time), key="ts_update")
-            
             if st.button("Update Timestamp Only"):
                 t_db[u['username']] = new_t
                 save_db(f"times_{l_name}_{team}", t_db)
                 st.success(f"Start time updated to {new_t}s!")
-            
             st.divider()
-            
-            # 3. File Upload Section
-            st.write("Replace/Upload Song File:")
-            up_f = st.file_uploader("Audio or Video (MP3/MOV/MP4)", type=["mp3","mov","mp4"])
-            
+            up_f = st.file_uploader("Audio/Video", type=["mp3","mov","mp4"])
             if st.button("Upload New File"):
                 if up_f:
                     f_p = f"songs/{l_name}_{team}_{u['username']}.mp3"
-                    # Also save the timestamp currently in the box
                     t_db[u['username']] = new_t
                     save_db(f"times_{l_name}_{team}", t_db)
-                    
                     if up_f.name.lower().endswith(('mov', 'mp4')) and VideoFileClip:
-                        with st.status("Converting video to audio..."):
+                        with st.status("Converting..."):
                             tmp = f"temp_video/{up_f.name}"
                             with open(tmp, "wb") as f: f.write(up_f.getbuffer())
                             with VideoFileClip(tmp) as clip: clip.audio.write_audiofile(f_p)
                             os.remove(tmp)
                     else:
                         with open(f_p, "wb") as f: f.write(up_f.getbuffer())
-                    st.success("File and Timestamp saved!")
-                else:
-                    st.error("Please select a file first.")
+                    st.success("Saved!")
