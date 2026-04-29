@@ -250,19 +250,43 @@ else:
         else:
             upload_tab = tabs[1]
 
-        with upload_tab:
-            st.subheader("Upload Walk-Up")
-            st_t = st.number_input("Start (sec)", 0, 300, 0)
-            up_f = st.file_uploader("Audio/Video", type=["mp3","mov","mp4"])
-            if st.button("Save"):
+       with upload_tab:
+            st.subheader("🎵 My Walk-Up Settings")
+            
+            # 1. Load current settings
+            t_db = load_db(f"times_{l_name}_{team}")
+            current_time = t_db.get(u['username'], 0)
+            
+            # 2. Dedicated Timestamp Adjustment
+            st.write("Adjust your song's start point:")
+            new_t = st.number_input("Start Time (seconds)", 0, 300, int(current_time), key="ts_update")
+            
+            if st.button("Update Timestamp Only"):
+                t_db[u['username']] = new_t
+                save_db(f"times_{l_name}_{team}", t_db)
+                st.success(f"Start time updated to {new_t}s!")
+            
+            st.divider()
+            
+            # 3. File Upload Section
+            st.write("Replace/Upload Song File:")
+            up_f = st.file_uploader("Audio or Video (MP3/MOV/MP4)", type=["mp3","mov","mp4"])
+            
+            if st.button("Upload New File"):
                 if up_f:
                     f_p = f"songs/{l_name}_{team}_{u['username']}.mp3"
-                    save_db(f"times_{l_name}_{team}", {**load_db(f"times_{l_name}_{team}"), u['username']: st_t})
+                    # Also save the timestamp currently in the box
+                    t_db[u['username']] = new_t
+                    save_db(f"times_{l_name}_{team}", t_db)
+                    
                     if up_f.name.lower().endswith(('mov', 'mp4')) and VideoFileClip:
-                        tmp = f"temp_video/{up_f.name}"
-                        with open(tmp, "wb") as f: f.write(up_f.getbuffer())
-                        with VideoFileClip(tmp) as clip: clip.audio.write_audiofile(f_p)
-                        os.remove(tmp)
+                        with st.status("Converting video to audio..."):
+                            tmp = f"temp_video/{up_f.name}"
+                            with open(tmp, "wb") as f: f.write(up_f.getbuffer())
+                            with VideoFileClip(tmp) as clip: clip.audio.write_audiofile(f_p)
+                            os.remove(tmp)
                     else:
                         with open(f_p, "wb") as f: f.write(up_f.getbuffer())
-                    st.success("Saved!")
+                    st.success("File and Timestamp saved!")
+                else:
+                    st.error("Please select a file first.")
