@@ -3,8 +3,8 @@ import os
 from supabase import create_client, Client
 
 # --- 1. SUPABASE CONNECTION ---
-SUPABASE_URL = "YOUR_SUPABASE_URL_HERE"
-SUPABASE_KEY = "YOUR_SUPABASE_KEY_HERE"
+SUPABASE_URL = "https://cdjjtomuokuluhvsjxpd.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkamp0b211b2t1bHVodnNqeHBkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0OTc3NzMsImV4cCI6MjA5MzA3Mzc3M30.oNrH9jmeyXxedj0NTRrhTilpGtOoPRZzy6SA5rsy16g"
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # --- MoviePy Robust Import ---
