@@ -83,7 +83,6 @@ def extract_audio_from_video(video_file):
         return None
 
 def draw_diamond(roster_data):
-    """Renders a visual baseball field with player names."""
     pos_map = {
         "CF": {"top": "10%", "left": "50%"},
         "LF": {"top": "25%", "left": "20%"},
@@ -95,7 +94,6 @@ def draw_diamond(roster_data):
         "P":  {"top": "60%", "left": "50%"},
         "C":  {"top": "85%", "left": "50%"},
     }
-    
     field_html = '<div class="field-container"><div class="dirt-path"></div>'
     for player in roster_data:
         pos = player.get("position")
@@ -107,22 +105,79 @@ def draw_diamond(roster_data):
     st.markdown(field_html, unsafe_allow_html=True)
 
 # --- 5. AUTHENTICATION ---
-if 'user' not in st.session_state: st.session_state.user = None
+if 'user' not in st.session_state:
+    st.session_state.user = None
 
 if st.session_state.user is None:
     st.title("⚾ League Hub")
-    choice = st.radio("Action", ["Login", "Join", "Create"], horizontal=True)
+    choice = st.radio("Action", ["Login", "Join", "Create", "Forgot Password"], horizontal=True)
+    
     if choice == "Login":
         l_email = st.text_input("Email")
         l_pwd = st.text_input("Password", type="password")
         if st.button("Login"):
             try:
-                supabase.auth.sign_in_with_password({"email": l_email, "password": l_pwd})
-                p = supabase.table('profiles').select("*").eq('email', l_email).single().execute()
-                st.session_state.user = p.data
-                st.rerun()
-            except: st.error("Login failed.")
-    # (Rest of Join/Create remains same, omitted for brevity but preserved in your local logic)
+                res = supabase.auth.sign_in_with_password({"email": l_email, "password": l_pwd})
+                if res.user:
+                    p = supabase.table('profiles').select("*").eq('email', l_email).single().execute()
+                    st.session_state.user = p.data
+                    st.rerun()
+            except Exception as e:
+                st.error("Login failed. Check your credentials.")
+
+    elif choice == "Forgot Password":
+        f_email = st.text_input("Enter your account email")
+        if st.button("Send Reset Link"):
+            try:
+                supabase.auth.reset_password_for_email(f_email)
+                st.success("Reset link sent! Check your inbox.")
+            except Exception as e:
+                st.error("Error sending reset link.")
+
+    elif choice == "Create":
+        st.subheader("🛡️ Initialize New League")
+        new_l = st.text_input("League Name").strip().upper()
+        new_code = st.text_input("Join Code").strip()
+        email = st.text_input("Admin Email")
+        pwd = st.text_input("Password", type="password")
+        u_name = st.text_input("Admin Full Name")
+        if st.button("Initialize League"):
+            try:
+                supabase.auth.sign_up({"email": email, "password": pwd})
+                supabase.table('leagues').insert({"name": new_l, "join_code": new_code, "admin_email": email}).execute()
+                supabase.table('profiles').update({"username": u_name, "role": "Announcer", "league": new_l}).eq('email', email).execute()
+                st.success("League created! Please log in.")
+            except Exception as e: st.error(f"Setup Error: {e}")
+
+    elif choice == "Join":
+        st.subheader("🔑 Join Existing League")
+        input_code = st.text_input("Enter Invite Code").strip()
+        if st.button("Verify Code"):
+            match = supabase.table('leagues').select("name").eq('join_code', input_code).execute()
+            if match.data:
+                st.session_state.found_league = match.data[0]['name']
+                teams_q = supabase.table('teams').select("name").eq('league', st.session_state.found_league).execute()
+                st.session_state.league_teams = [t['name'] for t in teams_q.data]
+                st.success(f"Verified for {st.session_state.found_league}")
+
+        if 'found_league' in st.session_state:
+            st.divider()
+            reg_email = st.text_input("Email")
+            reg_pwd = st.text_input("Password", type="password")
+            reg_name = st.text_input("Full Name")
+            reg_role = st.selectbox("Role", ["Player", "Coach"])
+            sel_team = st.selectbox("Select Team", options=st.session_state.get('league_teams', []))
+            if st.button("Complete Sign Up"):
+                try:
+                    supabase.auth.sign_up({"email": reg_email, "password": reg_pwd})
+                    supabase.table('profiles').update({
+                        "username": reg_name, "role": reg_role, 
+                        "league": st.session_state.found_league, "team": sel_team
+                    }).eq('email', reg_email).execute()
+                    st.success("Registration successful! Please log in.")
+                except Exception as e: st.error(f"Error: {e}")
+
+# --- 6. DASHBOARD ---
 else:
     u = st.session_state.user
     l_name = u.get("league", "General")
@@ -133,14 +188,12 @@ else:
         st.session_state.user = None
         st.rerun()
 
-    # --- ANNOUNCER ROLE ---
     if u.get('role') == "Announcer":
         tabs = st.tabs(["🎙️ Game Deck", "⚙️ Manage", "👤 Profile"])
         with tabs[0]:
             st.header("Live Game Deck")
             teams_q = supabase.table('teams').select("name").eq('league', l_name).execute()
             team_list = [t['name'] for t in teams_q.data]
-            
             c1, c2 = st.columns(2)
             with c1:
                 t1 = st.selectbox("Away Team", team_list)
@@ -149,7 +202,7 @@ else:
                 for p in t1_players:
                     col_a, col_b = st.columns([3,1])
                     col_a.write(f"{p['username']} ({p.get('position', 'Sub')})")
-                    if p.get('walkup_url') and col_b.button("🎵", key=f"play_{p['id']}"):
+                    if p.get('walkup_url') and col_b.button("🎵", key=f"play_t1_{p['email']}"):
                         st.audio(p['walkup_url'])
             with c2:
                 t2 = st.selectbox("Home Team", team_list)
@@ -158,36 +211,39 @@ else:
                 for p in t2_players:
                     col_a, col_b = st.columns([3,1])
                     col_a.write(f"{p['username']} ({p.get('position', 'Sub')})")
-                    if p.get('walkup_url') and col_b.button("🎵", key=f"play_{p['id']}"):
+                    if p.get('walkup_url') and col_b.button("🎵", key=f"play_t2_{p['email']}"):
                         st.audio(p['walkup_url'])
 
-    # --- COACH ROLE ---
     elif u.get('role') == "Coach":
         tabs = st.tabs([f"📋 {my_team} Management", "👤 Profile"])
         with tabs[0]:
             players_q = supabase.table('profiles').select("*").eq('team', my_team).execute()
             roster = players_q.data
-            
             col_list, col_field = st.columns([1, 2])
             with col_list:
                 st.subheader("Assign Positions")
                 for p in roster:
-                    new_pos = st.selectbox(f"{p['username']}", ["Sub", "P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"], index=0, key=f"pos_{p['id']}")
-                    if new_pos != p.get('position'):
-                        supabase.table('profiles').update({"position": new_pos}).eq('id', p['id']).execute()
+                    # Fix: use email for safety if ID isn't pulling correctly
+                    current_pos = p.get('position', 'Sub')
+                    pos_options = ["Sub", "P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"]
+                    try:
+                        idx = pos_options.index(current_pos)
+                    except ValueError:
+                        idx = 0
+                    
+                    new_pos = st.selectbox(f"{p['username']}", pos_options, index=idx, key=f"pos_coach_{p['email']}")
+                    if new_pos != current_pos:
+                        supabase.table('profiles').update({"position": new_pos}).eq('email', p['email']).execute()
                         st.rerun()
             with col_field:
                 draw_diamond(roster)
 
-    # --- PLAYER ROLE ---
     else:
         tabs = st.tabs(["💎 Game View", "👤 Profile"])
         with tabs[0]:
             st.header(f"Team: {my_team}")
             roster = supabase.table('profiles').select("*").eq('team', my_team).execute().data
             draw_diamond(roster)
-            st.write("Check the field to see your position for today's game!")
-            
         with tabs[1]:
             st.header("Profile & Walk-up")
             media = st.file_uploader("Upload Walk-up (Video or Audio)", type=['mp3', 'mp4', 'mov', 'avi'])
