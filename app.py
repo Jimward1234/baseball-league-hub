@@ -47,17 +47,17 @@ if st.session_state.user is None:
         new_l = st.text_input("League Name").strip().upper()
         new_code = st.text_input("Create a Join Code").strip()
         email = st.text_input("Admin Email")
-        pwd = st.text_input("Password", type="password")
+        pwd = st.text_input("Password", type="password", help="Must be at least 6 characters")
         u_name = st.text_input("Your Full Name (Admin)")
         
         if st.button("Initialize My League"):
             try:
-                supabase.auth.sign_up({"email": email, "password": pwd})
+                auth_res = supabase.auth.sign_up({"email": email, "password": pwd})
                 supabase.table('leagues').insert({"name": new_l, "join_code": new_code, "admin_email": email}).execute()
                 supabase.table('profiles').update({"username": u_name, "role": "Announcer", "league": new_l}).eq('email', email).execute()
                 st.success("League Ready! Switch to Login.")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Setup Error: {e}")
 
     elif choice == "Join a League":
         st.subheader("🔑 Join with Code")
@@ -70,25 +70,28 @@ if st.session_state.user is None:
 
         if 'found_league' in st.session_state:
             reg_email = st.text_input("Email")
-            reg_pwd = st.text_input("Password", type="password")
+            reg_pwd = st.text_input("Password", type="password", help="Must be at least 6 characters")
             reg_name = st.text_input("Your Name")
             reg_role = st.selectbox("Role", ["Player", "Coach"])
             if st.button("Sign Up"):
-                supabase.auth.sign_up({"email": reg_email, "password": reg_pwd})
-                supabase.table('profiles').update({"username": reg_name, "role": reg_role, "league": st.session_state.found_league}).eq('email', reg_email).execute()
-                st.success("Done! Switch to Login.")
+                try:
+                    supabase.auth.sign_up({"email": reg_email, "password": reg_pwd})
+                    supabase.table('profiles').update({"username": reg_name, "role": reg_role, "league": st.session_state.found_league}).eq('email', reg_email).execute()
+                    st.success("Done! Switch to Login.")
+                except Exception as e:
+                    st.error(f"Sign Up Error: {e}")
 
     else:
         login_email = st.text_input("Email")
         login_pwd = st.text_input("Password", type="password")
         if st.button("Login"):
             try:
-                supabase.auth.sign_in_with_password({"email": login_email, "password": login_pwd})
+                auth_res = supabase.auth.sign_in_with_password({"email": login_email, "password": login_pwd})
                 p = supabase.table('profiles').select("*").eq('email', login_email).single().execute()
                 st.session_state.user = p.data
                 st.rerun()
             except:
-                st.error("Login Failed.")
+                st.error("Login Failed. Check credentials.")
 
 # --- 5. MAIN APP INTERFACE ---
 else:
@@ -116,19 +119,26 @@ else:
                 st.rerun()
             
             st.subheader("Current Teams")
-            teams = supabase.table('teams').select("*").eq('league', l_name).execute()
-            for t in teams.data:
+            teams_res = supabase.table('teams').select("*").eq('league', l_name).execute()
+            for t in teams_res.data:
                 st.write(f"⚾ {t['name']}")
 
     elif u.get('role') == "Coach":
         tabs = st.tabs(["📋 Roster", "👤 My Profile"])
+        with tabs[0]:
+            st.header("📋 Team Roster")
+            st.write("Coach tools coming soon...")
+            
     else:
         tabs = st.tabs(["💎 Field", "👤 My Profile"])
+        with tabs[0]:
+            st.header("💎 My Field View")
+            st.write("Player tools coming soon...")
 
     # --- SHARED PROFILE TAB ---
     with tabs[-1]:
         st.header("Update My Info")
-        p_col1, p_col2 = st.columns(2) # Renamed to p_col to avoid confusion
+        p_col1, p_col2 = st.columns(2)
         with p_col1:
             new_num = st.text_input("Number", value=u.get('player_number', ''))
             if st.button("Save Profile"):
