@@ -13,7 +13,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 try:
     from moviepy.editor import AudioFileClip
 except ImportError:
-    st.error("Error: 'moviepy' is not installed. Please add it to your requirements.txt")
+    st.error("⚠️ MoviePy is not installed on this server. Please add 'moviepy' to your requirements.txt file and redeploy.")
 
 # --- 3. THEME & STYLING ---
 st.set_page_config(page_title="League Hub", layout="wide")
