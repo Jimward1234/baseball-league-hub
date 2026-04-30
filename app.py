@@ -223,7 +223,6 @@ else:
             with col_list:
                 st.subheader("Assign Positions")
                 for p in roster:
-                    # Fix: use email for safety if ID isn't pulling correctly
                     current_pos = p.get('position', 'Sub')
                     pos_options = ["Sub", "P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"]
                     try:
@@ -233,8 +232,12 @@ else:
                     
                     new_pos = st.selectbox(f"{p['username']}", pos_options, index=idx, key=f"pos_coach_{p['email']}")
                     if new_pos != current_pos:
-                        supabase.table('profiles').update({"position": new_pos}).eq('email', p['email']).execute()
-                        st.rerun()
+                        try:
+                            # This is the specific line that was causing the crash
+                            supabase.table('profiles').update({"position": new_pos}).eq('email', p['email']).execute()
+                            st.rerun()
+                        except Exception as e:
+                            st.warning("⚠️ Database Update Failed: Check your Supabase RLS Policies.")
             with col_field:
                 draw_diamond(roster)
 
