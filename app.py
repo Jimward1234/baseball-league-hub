@@ -138,26 +138,46 @@ else:
         st.rerun()
 
     # --- Role-Based Tabs ---
+   # --- Role-Based Tabs ---
     if u.get('role') == "Announcer":
         tabs = st.tabs(["🎙️ Game Deck", "⚙️ Manage League", "👤 My Profile"])
+        
+        with tabs[0]:
+            st.header("🎙️ Live Game Deck")
+            st.info("This is where you will trigger walk-up songs and see the lineup.")
+            # We will add the 'Play' buttons here once we have players in the league!
+            
+        with tabs[1]:
+            st.header("⚙️ League Management")
+            st.subheader("Current Teams")
+            # Fetch teams from Supabase
+            teams = supabase.table('teams').select("*").eq('league', l_name).execute()
+            if teams.data:
+                for team in teams.data:
+                    st.write(f"⚾ {team['name']}")
+            else:
+                st.write("No teams created yet.")
+            
+            st.divider()
+            st.subheader("Add a New Team")
+            t_name = st.text_input("Team Name (e.g., Tigers)")
+            if st.button("Add Team"):
+                supabase.table('teams').insert({"name": t_name, "league": l_name}).execute()
+                st.success(f"Added {t_name}!")
+                st.rerun()
+
     elif u.get('role') == "Coach":
         tabs = st.tabs(["💎 Field/Order", "📋 Team Roster", "🏆 Team Logo", "👤 My Profile"])
-    else:
-        tabs = st.tabs(["💎 Field/Order", "👤 My Profile"])
+        # (Coach logic goes here...)
 
+    else: # Players
+        tabs = st.tabs(["💎 Field/Order", "👤 My Profile"])
+        # (Player logic goes here...)
+
+    # --- SHARED: MY PROFILE TAB (Always the last tab) ---
     with tabs[-1]:
         st.header("Update My Info")
-        col1, col2 = st.columns(2)
-        with col1:
-            new_num = st.text_input("Player/Staff #", value=u.get('player_number', ''))
-            new_pic = st.file_uploader("Upload Profile Pic", type=['png', 'jpg'])
-            if st.button("Save Profile"):
-                updates = {"player_number": new_num}
-                if new_pic:
-                    url = save_file_to_supabase(new_pic.getvalue(), f"avatars/{u['email']}.png")
-                    updates["avatar_url"] = url
-                supabase.table('profiles').update(updates).eq('email', u['email']).execute()
-                st.success("Profile Updated!")
+        # ... (Keep your existing Profile code here)
 
         with col2:
             st.subheader("Walk-Up Song")
