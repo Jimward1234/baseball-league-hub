@@ -142,7 +142,46 @@ else:
         # (Announcer logic remains same as previous steps)
     elif u.get('role') == "Coach":
         tabs = st.tabs([f"📋 {my_team}", "👤 Profile"])
-        # (Coach logic remains same as previous steps)
+        elif u.get('role') == "Coach":
+        tabs = st.tabs([f"📋 {my_team} Roster", "⚾ Defensive Diamond", "👤 Profile"])
+
+        # --- TAB 1: ROSTER & BATTING ORDER ---
+        with tabs[0]:
+            st.header(f"Lineup for {my_team}")
+            # Fetch all players in this league and team
+            players_q = supabase.table('profiles').select("*").eq('league', l_name).eq('team', my_team).eq('role', 'Player').execute()
+            roster = players_q.data
+
+            if roster:
+                for i, player in enumerate(roster):
+                    col1, col2, col3 = st.columns([1, 3, 2])
+                    col1.write(f"#{player.get('player_number', '??')}")
+                    col2.write(f"**{player.get('username')}**")
+                    col3.selectbox("Position", ["P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF", "DH", "Sub"], key=f"pos_{i}")
+            else:
+                st.info("No players found on this team yet. Have them join using your league code!")
+
+        # --- TAB 2: DEFENSIVE DIAMOND ---
+        with tabs[1]:
+            st.header("Defensive Positioning")
+            # Simple visual representation of the diamond
+            d1, d2, d3 = st.columns(3)
+            with d2: st.button("CF", use_container_width=True)
+            
+            d4, d5, d6 = st.columns(3)
+            with d4: st.button("LF", use_container_width=True)
+            with d6: st.button("RF", use_container_width=True)
+            
+            d7, d8, d9 = st.columns(3)
+            with d7: st.button("SS", use_container_width=True)
+            with d9: st.button("2B", use_container_width=True)
+            
+            d10, d11, d12 = st.columns(3)
+            with d10: st.button("3B", use_container_width=True)
+            with d11: st.button("P", use_container_width=True)
+            with d12: st.button("1B", use_container_width=True)
+            
+            with d11: st.button("C", use_container_width=True)
     else:
         tabs = st.tabs(["💎 My Field", "👤 Profile"])
 
