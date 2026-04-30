@@ -1,11 +1,12 @@
 import streamlit as st
 from supabase import create_client, Client
 
-# --- SECURE DATABASE CONNECTION ---
-# These pull from the "Secrets" you just saved in the dashboard
-url = st.secrets["https://cdjjtomuokuluhvsjxpd.supabase.co"]
-key = st.secrets["eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkamp0b211b2t1bHVodnNqeHBkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0OTc3NzMsImV4cCI6MjA5MzA3Mzc3M30.oNrH9jmeyXxedj0NTRrhTilpGtOoPRZzy6SA5rsy16g"]
-supabase: Client = create_client(url, key)
+# --- DATABASE CONNECTION ---
+# Hardcoded with your specific credentials from image_c5e0fe.png
+URL = "https://cdjjtomuokuluhvsjxpd.supabase.co"
+KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc2MiOiJzdXByYWJhc2UiLCJuYW1lIj0b211b2t1bHVzanhwZCIsImV4cCI6ImFub24iLCJpYXQiOjE3Nzc0Tc3NzMsImV4cCI6MjA5MzA3Mzc3M30.oNrH9jmeyXkedj0NTRrhTilpGt0oPRZZy6SA5rsy16g"
+
+supabase: Client = create_client(URL, KEY)
 
 st.set_page_config(page_title="League Hub", page_icon="⚾")
 
@@ -22,14 +23,14 @@ if 'user' not in st.session_state:
             try:
                 res = supabase.auth.sign_in_with_password({"email": l_email, "password": l_pwd})
                 if res.user:
-                    # Look up the user in your 60-person roster
+                    # Look up user in the 60-person roster
                     p = supabase.table('profiles').select("*").eq('email', l_email).execute()
                     if p.data:
                         st.session_state.user = p.data[0]
                         st.success(f"Welcome back, {st.session_state.user['username']}!")
                         st.rerun()
                     else:
-                        st.error("Profile not found. Please use the 'Join' tab to link your account.")
+                        st.error("Profile not found. Please 'Join' to link your account.")
             except Exception:
                 st.error("Login failed. Check your credentials.")
 
@@ -48,7 +49,7 @@ if 'user' not in st.session_state:
                 
                 if auth_res.user:
                     new_uid = auth_res.user.id
-                    # 2. AUTOMATIC SYNC: Links their new login to your existing roster row
+                    # 2. AUTOMATIC SYNC: Links new login to existing 60-user roster
                     supabase.table('profiles').update({
                         "id": new_uid, 
                         "role": reg_role, 
@@ -59,49 +60,42 @@ if 'user' not in st.session_state:
                     st.success("✅ Success! Now switch to the 'Login' tab.")
             except Exception as e:
                 if "already registered" in str(e).lower():
-                    st.info("You're already signed up! Just go to the 'Login' tab.")
+                    st.info("You're already signed up! Switch to 'Login'.")
                 else:
                     st.error(f"Error: {e}")
 
-# --- MAIN APP LOGIC (COACH & PLAYER DASHBOARD) ---
+# --- MAIN APP LOGIC ---
 else:
     u = st.session_state.user
     my_team = u.get('team', 'DEMO')
 
-    # COACH TOOLS (Includes the Safety Fix)
+    # COACH DASHBOARD
     if u.get('role') == "Coach":
-        tabs = st.tabs([f"📋 {my_team} Management", "👤 Profile"])
-        with tabs[0]:
-            players_q = supabase.table('profiles').select("*").eq('team', my_team).execute()
-            roster = players_q.data
-            col_list, col_field = st.columns([1, 2])
+        st.title(f"📋 {my_team} Management")
+        players_q = supabase.table('profiles').select("*").eq('team', my_team).execute()
+        roster = players_q.data
+        
+        st.subheader("Assign Positions")
+        for p in roster:
+            current_pos = p.get('position', 'Sub')
+            pos_options = ["Sub", "P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"]
             
-            with col_list:
-                st.subheader("Assign Positions")
-                for p in roster:
-                    current_pos = p.get('position', 'Sub')
-                    pos_options = ["Sub", "P", "C", "1B", "2B", "3B", "SS", "LF", "CF", "RF"]
-                    
-                    try:
-                        idx = pos_options.index(current_pos)
-                    except ValueError:
-                        idx = 0
-                    
-                    new_pos = st.selectbox(f"{p['username']}", pos_options, index=idx, key=f"pos_{p['email']}")
-                    
-                    if new_pos != current_pos:
-                        try:
-                            # THE SAFETY WRAPPER: Prevents app crashes on DB errors
-                            supabase.table('profiles').update({"position": new_pos}).eq('email', p['email']).execute()
-                            st.rerun()
-                        except Exception:
-                            st.warning("⚠️ Database Update Failed: Ensure RLS is enabled in Supabase.")
+            try:
+                idx = pos_options.index(current_pos)
+            except ValueError:
+                idx = 0
             
-            with col_field:
-                # Placeholder for your diamond drawing function
-                st.info("Baseball Diamond View Active")
+            new_pos = st.selectbox(f"Position for {p['username']}", pos_options, index=idx, key=f"pos_{p['email']}")
+            
+            if new_pos != current_pos:
+                try:
+                    # Safety fix to prevent crashes
+                    supabase.table('profiles').update({"position": new_pos}).eq('email', p['email']).execute()
+                    st.rerun()
+                except Exception:
+                    st.warning("⚠️ Update failed. Ensure RLS is enabled in Supabase.")
 
-    # LOGOUT BUTTON
+    # LOGOUT
     if st.sidebar.button("Logout"):
         supabase.auth.sign_out()
         del st.session_state.user
