@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 
 # --- DATABASE CONNECTION ---
+# Verified from your image_c5e0fe.png
 URL = "https://cdjjtomuokuluhvsjxpd.supabase.co"
 KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc2MiOiJzdXByYWJhc2UiLCJuYW1lIj0b211b2t1bHVzanhwZCIsImV4cCI6ImFub24iLCJpYXQiOjE3Nzc0Tc3NzMsImV4cCI6MjA5MzA3Mzc3M30.oNrH9jmeyXkedj0NTRrhTilpGt0oPRZZy6SA5rsy16g"
 
@@ -19,26 +20,23 @@ if 'user' not in st.session_state:
         
         if st.button("Login"):
             try:
+                # 1. Log into the authentication gate
                 res = supabase.auth.sign_in_with_password({"email": l_email, "password": l_pwd})
                 if res.user:
-                    # Search for the user in your 60-person roster
-                    p = supabase.table('profiles').select("*").eq('email', l_email).execute()
+                    # 2. Grab the user's data from the profiles table
+                    p = supabase.table('profiles').select("*").eq('id', res.user.id).execute()
+                    
                     if p.data:
                         st.session_state.user = p.data[0]
                         st.rerun()
                     else:
-                        # EMERGENCY FIX: If Auth exists but profile is missing, create a basic one
-                        new_profile = {
-                            "id": res.user.id,
-                            "email": l_email,
-                            "username": l_email.split('@')[0],
-                            "role": "Coach" # Defaulting to coach for your test
-                        }
-                        supabase.table('profiles').insert(new_profile).execute()
-                        st.session_state.user = new_profile
+                        # AUTO-FIX: Create a profile if one is missing
+                        new_data = {"id": res.user.id, "email": l_email, "role": "Coach", "username": "Coach Admin"}
+                        supabase.table('profiles').upsert(new_data).execute()
+                        st.session_state.user = new_data
                         st.rerun()
-            except Exception:
-                st.error("Login failed. Check your credentials.")
+            except Exception as e:
+                st.error(f"Login failed: {e}")
 
     elif choice == "Join":
         st.subheader("🔑 Join the League")
@@ -49,43 +47,33 @@ if 'user' not in st.session_state:
 
         if st.button("Complete Sign Up"):
             try:
+                # Create the user in Authentication
                 auth_res = supabase.auth.sign_up({"email": reg_email, "password": reg_pwd})
                 if auth_res.user:
-                    # This is the "Automatic Sync" for your 60 users
-                    # It tries to find their existing email and update it with their new ID
-                    check = supabase.table('profiles').select("*").eq('email', reg_email).execute()
-                    
-                    data = {
+                    # Link to the roster automatically
+                    profile_data = {
                         "id": auth_res.user.id, 
+                        "email": reg_email,
                         "role": reg_role, 
                         "username": reg_name
                     }
-                    
-                    if check.data:
-                        supabase.table('profiles').update(data).eq('email', reg_email).execute()
-                    else:
-                        data["email"] = reg_email
-                        supabase.table('profiles').insert(data).execute()
-                    
-                    st.success("✅ Account Linked! Switch to 'Login'.")
+                    # Upsert finds existing email and adds the ID
+                    supabase.table('profiles').upsert(profile_data, on_conflict="email").execute()
+                    st.success("✅ Success! Now go to the 'Login' tab.")
             except Exception as e:
-                st.error(f"Sign up failed: {e}")
+                st.error(f"Sign up error: {e}")
 
 else:
-    # --- DASHBOARD AREA ---
     u = st.session_state.user
-    st.title(f"Welcome, {u.get('username', 'Coach')}")
+    st.title(f"⚾ Welcome, {u.get('username', 'User')}!")
     
     if st.sidebar.button("Logout"):
         supabase.auth.sign_out()
         del st.session_state.user
         st.rerun()
 
-    # COACH TOOLS
     if u.get('role') == "Coach":
-        st.subheader("📋 Team Management")
-        # Restoring your roster view
-        res = supabase.table('profiles').select("*").execute()
-        if res.data:
-            st.write("Current Roster:")
-            st.dataframe(res.data)
+        st.subheader("📋 Team Roster")
+        roster = supabase.table('profiles').select("*").execute()
+        if roster.data:
+            st.dataframe(roster.data)
